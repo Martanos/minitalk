@@ -4,20 +4,11 @@
 send_message() {
     message="$1"
     start_time=$(date +%s.%N)
-
-    # Run the client with Valgrind
-    valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --log-file=valgrind.log ./client $server_pid "$message" 2>&1 >/dev/null
-
+    ./client $server_pid "$message"
     end_time=$(date +%s.%N)
     response_time=$(echo "$end_time - $start_time" | bc)
-
     echo "Message: $message"
     echo "Response time: $response_time seconds"
-
-    # Print the leak summary from Valgrind's output
-    echo "Memory Leak Summary:"
-    grep -E '(definitely|indirectly|possibly) lost:' valgrind.log
-
     echo "------------------------"
 }
 

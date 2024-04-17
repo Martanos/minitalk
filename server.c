@@ -6,7 +6,7 @@
 /*   By: malee <malee@42mail.sutd.edu.sg>           +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/04/08 10:49:25 by malee             #+#    #+#             */
-/*   Updated: 2024/04/18 00:29:39 by malee            ###   ########.fr       */
+/*   Updated: 2024/04/18 03:50:32 by malee            ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -32,7 +32,7 @@ static void	handle_message(siginfo_t *info)
 	else
 	{
 		temp = g_session.message;
-		if (temp == NULL)
+		if (!temp)
 			g_session.message = ft_strdup(g_session.byte);
 		else
 			g_session.message = ft_strjoin(temp, g_session.byte);
@@ -40,8 +40,7 @@ static void	handle_message(siginfo_t *info)
 		{
 			ft_printf("Error: Memory allocation failed\n");
 			free(temp);
-			free(g_session.message);
-			g_session.message = NULL;
+			temp = NULL;
 			exit(1);
 		}
 		free(temp);
