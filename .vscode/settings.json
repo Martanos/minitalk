@@ -1,6 +1,11 @@
 {
 	"files.associations": {
 		"libft.h": "c",
-		"ft_printf.h": "c"
+		"ft_printf.h": "c",
+		"types.h": "c",
+		"stdint.h": "c",
+		"minitalk.h": "c",
+		"system_error": "c",
+		"signal.h": "c"
 	}
 }

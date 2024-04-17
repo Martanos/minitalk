@@ -6,57 +6,70 @@
 /*   By: malee <malee@42mail.sutd.edu.sg>           +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/04/08 10:49:23 by malee             #+#    #+#             */
-/*   Updated: 2024/04/08 16:21:26 by malee            ###   ########.fr       */
+/*   Updated: 2024/04/18 02:59:31 by malee            ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "minitalk.h"
 
-void	send_string(pid_t server_pid, const char *str)
-{
-	int				len;
-	unsigned char	utf8_char[4];
+int		g_acknowledgment_received = 0;
 
-	while (*str)
-	{
-		len = 0;
-		while ((*str & 0xC0) == 0x80)
-			utf8_char[len++] = *str++;
-		utf8_char[len++] = *str++;
-		send_char(server_pid, utf8_char, len);
-	}
+void	acknowledgment_handler(int sig, siginfo_t *info, void *context)
+{
+	(void)context;
+	if (sig == ACK_BIT_SIGNAL)
+		g_acknowledgment_received = 1;
+	else if (sig == ACK_MESSAGE_SIGNAL)
+		ft_printf("Server with pid: %d Received message\n", info->si_pid);
 }
 
-void	send_char(pid_t server_pid, unsigned char *utf8_char, int len)
+void	send_bit(pid_t server_pid, int bit)
 {
-	int	bit_count;
-	int	itr;
+	if (bit)
+		kill(server_pid, POSITIVE_BIT);
+	else
+		kill(server_pid, ZERO_BIT);
+	while (!g_acknowledgment_received)
+		pause();
+	g_acknowledgment_received = 0;
+}
 
-	bit_count = 0;
-	while (bit_count < len)
+void	send_payload(pid_t server_pid, char *payload)
+{
+	int	jtr;
+
+	while (*payload)
 	{
-		itr = 7;
-		while (itr >= 0)
+		jtr = 7;
+		while (jtr >= 0)
 		{
-			if (utf8_char[bit_count] & (1 << itr))
-				kill(server_pid, SIGNAL_BIT_1);
-			else
-				kill(server_pid, SIGNAL_BIT_0);
-			usleep(100);
-			itr--;
+			send_bit(server_pid, (*payload >> jtr) & 1);
+			jtr--;
 		}
-		bit_count++;
+		payload++;
 	}
-	kill(server_pid, SIGNAL_CHAR_END);
+	jtr = 7;
+	while (jtr >= 0)
+	{
+		send_bit(server_pid, 0);
+		jtr--;
+	}
 }
 
 int	main(int argc, char *argv[])
 {
+	struct sigaction	sa;
+
 	if (argc != 3)
 	{
-		ft_printf("Usage: ./client [server_pid] [message]\n", 2);
+		ft_printf("Usage: ./client [server_pid] [payload]\n");
 		exit(1);
 	}
-	send_string(ft_atoi(argv[1]), argv[2]);
+	ft_memset(&sa, 0, sizeof(sa));
+	sa.sa_flags = SA_SIGINFO;
+	sa.sa_sigaction = acknowledgment_handler;
+	sigaction(ACK_BIT_SIGNAL, &sa, NULL);
+	sigaction(ACK_MESSAGE_SIGNAL, &sa, NULL);
+	send_payload(ft_atoi(argv[1]), argv[2]);
 	return (0);
 }

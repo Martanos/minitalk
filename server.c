@@ -6,57 +6,78 @@
 /*   By: malee <malee@42mail.sutd.edu.sg>           +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2024/04/08 10:49:25 by malee             #+#    #+#             */
-/*   Updated: 2024/04/08 16:43:53 by malee            ###   ########.fr       */
+/*   Updated: 2024/04/18 00:29:39 by malee            ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "minitalk.h"
 
-void	handle_signal(int signal)
-{
-	static t_message	utf8_char;
-	static int			bit_count;
+static t_session	g_session = {
+	.message = NULL,
+	.bit_position = 7,
+	.byte = {'\0', '\0'}
+};
 
-	if (signal == SIGNAL_BIT_0)
-		bit_count++;
-	else if (signal == SIGNAL_BIT_1)
+static void	handle_message(siginfo_t *info)
+{
+	char	*temp;
+
+	if (g_session.byte[0] == '\0')
 	{
-		utf8_char.buffer[utf8_char.message_len] |= (1 << (7 - bit_count % 8));
-		bit_count++;
+		ft_printf("Received message: %s\n", g_session.message);
+		free(g_session.message);
+		g_session.message = NULL;
+		kill(info->si_pid, ACK_MESSAGE_SIGNAL);
 	}
-	if (bit_count == 8)
+	else
 	{
-		utf8_char.message_len++;
-		bit_count = 0;
-		if ((utf8_char.buffer[utf8_char.message_len - 1] & 0xC0) != 0xC0 ||
-			utf8_char.message_len == 4)
+		temp = g_session.message;
+		if (temp == NULL)
+			g_session.message = ft_strdup(g_session.byte);
+		else
+			g_session.message = ft_strjoin(temp, g_session.byte);
+		if (!g_session.message)
 		{
-			receive_char(utf8_char);
-			ft_memset(&utf8_char, 0, sizeof(t_message));
-			utf8_char.message_len = 0;
+			ft_printf("Error: Memory allocation failed\n");
+			free(temp);
+			free(g_session.message);
+			g_session.message = NULL;
+			exit(1);
 		}
+		free(temp);
 	}
 }
 
-void	receive_char(t_message utf8_char)
+static void	handle_bits(int sig, siginfo_t *info)
 {
-	write(1, utf8_char.buffer, utf8_char.message_len);
+	if (sig == POSITIVE_BIT)
+		g_session.byte[0] |= 1 << g_session.bit_position;
+	g_session.bit_position--;
+	if (g_session.bit_position == -1)
+	{
+		handle_message(info);
+		g_session.bit_position = 7;
+		g_session.byte[0] = '\0';
+	}
+	kill(info->si_pid, ACK_BIT_SIGNAL);
+}
+
+void	session_handler(int sig, siginfo_t *info, void *context)
+{
+	(void)context;
+	if (sig == POSITIVE_BIT || sig == ZERO_BIT)
+		handle_bits(sig, info);
 }
 
 int	main(void)
 {
 	struct sigaction	sa;
 
-	sa.sa_handler = handle_signal;
-	sigemptyset(&sa.sa_mask);
-	sa.sa_flags = 0;
-	if (sigaction(SIGNAL_BIT_0, &sa, NULL) == -1
-		|| sigaction(SIGNAL_BIT_1, &sa, NULL) == -1
-		|| sigaction(SIGNAL_CHAR_END, &sa, NULL) == -1)
-	{
-		ft_printf("Error: sigaction failed\n", 2);
-		exit(EXIT_FAILURE);
-	}
+	ft_memset(&sa, 0, sizeof(sa));
+	sa.sa_flags = SA_SIGINFO;
+	sa.sa_sigaction = session_handler;
+	sigaction(POSITIVE_BIT, &sa, NULL);
+	sigaction(ZERO_BIT, &sa, NULL);
 	ft_printf("Server PID: %d\n", getpid());
 	while (1)
 		pause();
